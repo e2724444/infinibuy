@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>무한매수 계산기</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg: #080b12;
+  --surface: #0e1420;
+  --surface2: #141b2d;
+  --border: #1e2a42;
+  --accent: #3af0b0;
+  --accent-dim: rgba(58,240,176,0.15);
+  --blue: #4d9fff;
+  --blue-dim: rgba(77,159,255,0.15);
+  --red: #ff4d6d;
+  --red-dim: rgba(255,77,109,0.12);
+  --yellow: #ffc940;
+  --yellow-dim: rgba(255,201,64,0.12);
+  --text: #a8b8d0;
+  --text-dim: #3a4a60;
+  --text-bright: #e8f0ff;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* grid bg */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px 100px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.header-left h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  color: var(--text-bright);
+  letter-spacing: -0.5px;
+}
+.header-left p {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  font-family: 'Space Mono', monospace;
+}
+.settings-btn {
+  width: 38px; height: 38px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 16px;
+  transition: all 0.2s;
+}
+.settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Ticker 선택 ── */
+.ticker-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ticker-btn {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.ticker-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── 전일종가 바 ── */
+.price-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+}
+.price-bar .label { color: var(--text-dim); font-size: 10px; }
+.price-bar .price-val { color: var(--text-bright); font-size: 16px; font-weight: 700; }
+.price-bar .price-sub { color: var(--text-dim); font-size: 10px; margin-top: 1px; }
+.price-bar .refresh-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: 'Space Mono', monospace;
+  transition: all 0.2s;
+}
+.price-bar .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+.price-bar .refresh-btn.loading { color: var(--yellow); border-color: var(--yellow); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.price-bar .refresh-btn.err { color: var(--red); border-color: var(--red); }
+
+/* ── 입력 카드 ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-title::before {
+  content: '';
+  width: 3px; height: 11px;
+  background: var(--accent);
+  border-radius: 2px;
+  display: inline-block;
+}
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field.full { grid-column: 1 / -1; }
+.field label {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.field input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  color: var(--text-bright);
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.field input:focus { border-color: var(--accent); }
+.field input::placeholder { color: var(--text-dim); font-size: 11px; }
+
+/* ── 계산 버튼 ── */
+.calc-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  color: #000;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+.calc-btn:hover { background: #5fffca; box-shadow: 0 4px 24px rgba(58,240,176,0.3); }
+.calc-btn:active { transform: scale(0.98); }
+
+/* ── 결과 카드 ── */
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+  display: none;
+}
+.result-card.show { display: block; }
+.result-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.result-header.sell { background: var(--red-dim); color: var(--red); border-bottom-color: rgba(255,77,109,0.2); }
+.result-header.buy { background: var(--blue-dim); color: var(--blue); border-bottom-color: rgba(77,159,255,0.2); }
+.result-header.buy2 { background: var(--accent-dim); color: var(--accent); border-bottom-color: rgba(58,240,176,0.2); }
+.result-header.warn { background: var(--yellow-dim); color: var(--yellow); border-bottom-color: rgba(255,201,64,0.2); }
+.result-body { padding: 14px; }
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+}
+.result-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.result-label { font-size: 11px; color: var(--text-dim); font-family: 'Space Mono', monospace; }
+.result-value { font-family: 'Space Mono', monospace; font-size: 15px; font-weight: 700; color: var(--text-bright); }
+.result-value.accent { color: var(--accent); }
+.result-value.red { color: var(--red); }
+.result-value.blue { color: var(--blue); }
+.result-value.yellow { color: var(--yellow); }
+.result-tag {
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 1px;
+}
+.tag-loc { background: var(--blue-dim); color: var(--blue); }
+.tag-limit { background: var(--red-dim); color: var(--red); }
+.tag-moc { background: var(--yellow-dim); color: var(--yellow); }
+
+/* ── 상태 요약 바 ── */
+.summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+  display: none;
+}
+.summary-bar.show { display: grid; }
+.sum-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.sum-label { font-size: 9px; color: var(--text-dim); font-family: 'Space Mono', monospace; letter-spacing: 1px; margin-bottom: 4px; }
+.sum-value { font-size: 14px; font-weight: 700; font-family: 'Space Mono', monospace; color: var(--text-bright); }
+.sum-value.accent { color: var(--accent); }
+.sum-value.yellow { color: var(--yellow); }
+.sum-value.red { color: var(--red); }
+
+/* ── 설정 패널 (슬라이드) ── */
+.overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+}
+.overlay.show { display: block; }
+.settings-panel {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding: 24px 20px 40px;
+  z-index: 101;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.settings-panel.show { transform: translateY(0); }
+.panel-handle {
+  width: 36px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+.panel-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  color: var(--text-bright);
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.setting-group { margin-bottom: 16px; }
+.setting-group .group-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1.5px;
+  font-family: 'Space Mono', monospace;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.setting-row label { font-size: 12px; color: var(--text); }
+.setting-row input[type="number"],
+.setting-row input[type="text"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text-bright);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  width: 110px;
+  text-align: right;
+  outline: none;
+}
+.setting-row input:focus { border-color: var(--accent); }
+
+/* Toggle */
+.toggle-wrap { display: flex; align-items: center; gap: 6px; }
+.toggle {
+  position: relative;
+  width: 42px; height: 24px;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0;
+  background: var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  left: 3px; bottom: 3px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent-dim); border: 1px solid var(--accent); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+
+/* 매도방식 선택 */
+.seg-ctrl {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.seg-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.seg-btn.active { background: var(--surface2); color: var(--text-bright); }
+
+.save-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+/* ── 조건 충족 안됨 메시지 ── */
+.no-result {
+  text-align: center;
+  padding: 30px 20px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: none;
+}
+.no-result.show { display: block; }
+
+/* ── 수익률 뱃지 ── */
+.pnl-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-family: 'Space Mono', monospace;
+}
+.pnl-badge.pos { background: var(--accent-dim); color: var(--accent); }
+.pnl-badge.neg { background: var(--red-dim); color: var(--red); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <div class="header-left">
+      <h1>무한매수 계산기</h1>
+      <p>라오어 전략 / LOC 주문 계산</p>
+    </div>
+    <button class="settings-btn" onclick="openSettings()">⚙</button>
+  </div>
+
+  <!-- 티커 선택 -->
+  <div class="ticker-row" id="tickerRow">
+    <button class="ticker-btn active" onclick="selectTicker(this, 'TQQQ')">TQQQ</button>
+    <button class="ticker-btn" onclick="selectTicker(this, 'SOXL')">SOXL</button>
+    <button class="ticker-btn" onclick="selectTicker(this, 'CUSTOM')">직접입력</button>
+  </div>
+
+  <!-- 전일종가 바 -->
+  <div class="price-bar" style="flex-wrap:wrap; gap:8px;">
+    <div style="flex:1; min-width:0;">
+      <div class="label">PREV CLOSE</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:3px;">
+        <div class="price-val" id="prevCloseVal">—</div>
+        <div class="price-sub" id="prevCloseSub">조회 필요</div>
+      </div>
+      <div id="manualInputWrap" style="display:none; margin-top:8px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" id="manualClose" placeholder="직접 입력 ($)" step="0.01"
+            inputmode="decimal"
+            style="background:var(--bg); border:1px solid var(--yellow); border-radius:6px;
+                   padding:7px 10px; color:var(--text-bright); font-family:'Space Mono',monospace;
+                   font-size:13px; outline:none; width:140px;" />
+          <button onclick="applyManual()"
+            style="padding:7px 12px; background:var(--yellow-dim); border:1px solid var(--yellow);
+                   border-radius:6px; color:var(--yellow); font-family:'Space Mono',monospace;
+                   font-size:11px; cursor:pointer; white-space:nowrap;">적용</button>
+        </div>
+      </div>
+    </div>
+    <button class="refresh-btn" id="refreshBtn" onclick="fetchPrice()">↻ 조회</button>
+  </div>
+
+  <!-- 입력 -->
+  <div class="card">
+    <div class="card-title">오늘 입력</div>
+    <div class="input-row">
+      <div class="field">
+        <label>보유 수량 (주)</label>
+        <input type="number" id="holdQty" placeholder="0" step="0.0001" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label>평단가 ($)</label>
+        <input type="number" id="avgPrice" placeholder="0.00" step="0.01" inputmode="decimal" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 계산 버튼 -->
+  <button class="calc-btn" onclick="calculate()">▶ 주문 계산</button>
+
+  <!-- 상태 요약 -->
+  <div class="summary-bar" id="summaryBar">
+    <div class="sum-item">
+      <div class="sum-label">ROUND</div>
+      <div class="sum-value yellow" id="s-round">—</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-label">1 UNIT</div>
+      <div class="sum-value" id="s-unit">—</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-label">수익률</div>
+      <div class="sum-value" id="s-pnl">—</div>
+    </div>
+  </div>
+
+  <!-- 워닝 카드 -->
+  <div class="result-card" id="r-warning" style="border-color: rgba(255,201,64,0.4);">
+    <div class="result-header warn">
+      <span>⚠</span>
+      <span>현금 부족 경고</span>
+    </div>
+    <div class="result-body">
+      <div style="font-size:13px; color:var(--text); line-height:1.8; font-family:'Noto Sans KR',sans-serif;">
+        <span style="color:var(--yellow); font-family:'Space Mono',monospace; font-weight:700;">0.5unit(<span id="w-halfunit">—</span>)</span>으로
+        <span style="color:var(--text-bright);">1주(<span id="w-price">—</span>)</span>를 살 수 없어요.<br>
+        최소 <span style="color:var(--accent); font-family:'Space Mono',monospace; font-weight:700;" id="w-mincapital">—</span> 이상의 운용원금이 필요해요.
+      </div>
+      <div style="margin-top:10px; padding:8px 10px; background:var(--bg); border-radius:6px; font-size:11px; color:var(--text-dim); font-family:'Space Mono',monospace; line-height:1.7;">
+        운용원금 늘리기 or 분할횟수 줄이기<br>
+        → ⚙ 설정에서 변경 가능
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과: 매도 -->
+  <div class="result-card" id="r-sell">
+    <div class="result-header sell">
+      <span>📤</span>
+      <span id="r-sell-type-label">지정가 매도</span>
+      <span class="result-tag" id="r-sell-tag">LIMIT</span>
+    </div>
+    <div class="result-body">
+      <div class="result-row">
+        <span class="result-label">수량</span>
+        <span class="result-value red" id="r-sell-qty">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">주문가</span>
+        <span class="result-value red" id="r-sell-price">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">익절 목표</span>
+        <span class="result-value" id="r-sell-target">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과: LOC 매수 1번 -->
+  <div class="result-card" id="r-buy1">
+    <div class="result-header buy">
+      <span>🛒</span>
+      <span>LOC 매수 ①</span>
+      <span class="result-tag tag-loc">LOC</span>
+    </div>
+    <div class="result-body">
+      <div class="result-row">
+        <span class="result-label">수량</span>
+        <span class="result-value blue" id="r-buy1-qty">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">지정가 상한</span>
+        <span class="result-value blue" id="r-buy1-price">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">투입금액</span>
+        <span class="result-value" id="r-buy1-amt">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과: LOC 매수 2번 -->
+  <div class="result-card" id="r-buy2">
+    <div class="result-header buy2">
+      <span>🛒</span>
+      <span>LOC 매수 ②</span>
+      <span class="result-tag tag-loc">LOC @ 평단</span>
+    </div>
+    <div class="result-body">
+      <div class="result-row">
+        <span class="result-label">수량</span>
+        <span class="result-value accent" id="r-buy2-qty">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">지정가 상한</span>
+        <span class="result-value accent" id="r-buy2-price">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">투입금액</span>
+        <span class="result-value" id="r-buy2-amt">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">조건</span>
+        <span class="result-value" style="font-size:11px; color:var(--text-dim)">종가 ≤ 평단가일 때 체결</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과: 쿼터손절 -->
+  <div class="result-card" id="r-quarter">
+    <div class="result-header warn">
+      <span>⚠</span>
+      <span>쿼터 손절 (MOC)</span>
+      <span class="result-tag tag-moc">MOC</span>
+    </div>
+    <div class="result-body">
+      <div class="result-row">
+        <span class="result-label">매도 수량</span>
+        <span class="result-value yellow" id="r-quarter-qty">—</span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">조건</span>
+        <span class="result-value" style="font-size:11px; color:var(--text-dim)" id="r-quarter-reason">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 조건 미충족 -->
+  <div class="no-result" id="noResult">
+    입력값을 확인하고<br>계산 버튼을 눌러주세요
+  </div>
+
+</div>
+
+<!-- 오버레이 -->
+<div class="overlay" id="overlay" onclick="closeSettings()"></div>
+
+<!-- 설정 패널 -->
+<div class="settings-panel" id="settingsPanel">
+  <div class="panel-handle"></div>
+  <div class="panel-title">⚙ 전략 설정</div>
+
+  <div class="setting-group">
+    <div class="group-label">기본 설정</div>
+    <div class="setting-row">
+      <label>운용 원금 ($)</label>
+      <input type="number" id="s-capital" placeholder="10000" step="100" />
+    </div>
+    <div class="setting-row">
+      <label>분할 횟수</label>
+      <input type="number" id="s-divisions" placeholder="40" min="2" max="500" />
+    </div>
+    <div class="setting-row">
+      <label>익절 목표 (%)</label>
+      <input type="number" id="s-targetPct" placeholder="10" step="0.5" />
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="group-label">익절 매도 방식</div>
+    <div class="setting-row">
+      <label>주문 타입</label>
+      <div class="seg-ctrl">
+        <button class="seg-btn active" id="seg-limit" onclick="setSellType('limit')">지정가</button>
+        <button class="seg-btn" id="seg-loc" onclick="setSellType('loc')">LOC</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="group-label">쿼터 손절</div>
+    <div class="setting-row">
+      <label>쿼터 손절 사용</label>
+      <label class="toggle">
+        <input type="checkbox" id="s-useQuarter" onchange="toggleQuarter()" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="quarterDivRow" style="opacity:0.4; pointer-events:none;">
+      <label>손절 분모</label>
+      <input type="number" id="s-quarterDiv" placeholder="4" min="2" max="20" />
+    </div>
+  </div>
+
+  <button class="save-btn" onclick="saveSettings()">저장</button>
+</div>
+
+<script>
+// ── 상태 ──
+let state = {
+  ticker: 'TQQQ',
+  prevClose: null,
+  settings: {
+    capital: 10000,
+    divisions: 40,
+    targetPct: 10,
+    sellType: 'limit', // 'limit' | 'loc'
+    useQuarter: false,
+    quarterDiv: 4
+  }
+};
+
+// ── 로컬스토리지 ──
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('infinibuy_settings');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      state.settings = { ...state.settings, ...saved };
+      state.ticker = saved.ticker || 'TQQQ';
+    }
+  } catch(e) {}
+  applySettingsToUI();
+}
+
+function saveSettings() {
+  const s = state.settings;
+  s.capital    = parseFloat(document.getElementById('s-capital').value) || 10000;
+  s.divisions  = parseInt(document.getElementById('s-divisions').value) || 40;
+  s.targetPct  = parseFloat(document.getElementById('s-targetPct').value) || 10;
+  s.quarterDiv = parseInt(document.getElementById('s-quarterDiv').value) || 4;
+  s.useQuarter = document.getElementById('s-useQuarter').checked;
+  s.ticker = state.ticker;
+  localStorage.setItem('infinibuy_settings', JSON.stringify(s));
+  closeSettings();
+  fetchPrice();
+}
+
+function applySettingsToUI() {
+  const s = state.settings;
+  document.getElementById('s-capital').value   = s.capital;
+  document.getElementById('s-divisions').value = s.divisions;
+  document.getElementById('s-targetPct').value = s.targetPct;
+  document.getElementById('s-quarterDiv').value = s.quarterDiv;
+  document.getElementById('s-useQuarter').checked = s.useQuarter;
+  setSellType(s.sellType, false);
+  toggleQuarter();
+
+  // 티커 버튼
+  document.querySelectorAll('.ticker-btn').forEach(b => b.classList.remove('active'));
+  const tickerBtns = document.querySelectorAll('.ticker-btn');
+  if (state.ticker === 'TQQQ') tickerBtns[0].classList.add('active');
+  else if (state.ticker === 'SOXL') tickerBtns[1].classList.add('active');
+  else tickerBtns[2].classList.add('active');
+}
+
+// ── 티커 선택 ──
+function selectTicker(btn, ticker) {
+  document.querySelectorAll('.ticker-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.ticker = ticker;
+  state.prevClose = null;
+  document.getElementById('prevCloseVal').textContent = '—';
+  document.getElementById('prevCloseSub').textContent = '조회 필요';
+  if (ticker !== 'CUSTOM') fetchPrice();
+}
+
+// ── 전일종가 조회 (멀티 API 폴백) ──
+async function fetchPrice() {
+  if (state.ticker === 'CUSTOM') {
+    document.getElementById('manualInputWrap').style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = '↻';
+  btn.className = 'refresh-btn loading';
+  document.getElementById('manualInputWrap').style.display = 'none';
+
+  const symbol = state.ticker;
+
+  // 시도할 방법들 순서대로
+  const strategies = [
+    // 1) allorigins + Yahoo v8 (query1)
+    async () => {
+      const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
+      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const closes = data.chart.result[0].indicators.quote[0].close.filter(v => v !== null);
+      const price = closes[closes.length - 1];
+      const ts = data.chart.result[0].timestamp;
+      const date = new Date(ts[ts.length - 1] * 1000);
+      if (!price) throw new Error('no price');
+      return { price, label: `${date.getMonth()+1}/${date.getDate()} 종가` };
+    },
+    // 2) allorigins + Yahoo v8 (query2)
+    async () => {
+      const yahooUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`;
+      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const closes = data.chart.result[0].indicators.quote[0].close.filter(v => v !== null);
+      const price = closes[closes.length - 1];
+      if (!price) throw new Error('no price');
+      return { price, label: '종가 (q2)' };
+    },
+    // 3) allorigins + Yahoo v7
+    async () => {
+      const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/download/${symbol}?interval=1d&range=5d`;
+      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+      const res = await fetch(url);
+      const csv = await res.text();
+      const lines = csv.trim().split('\n');
+      const last = lines[lines.length - 1].split(',');
+      const price = parseFloat(last[4]); // Close column
+      if (!price) throw new Error('no price');
+      return { price, label: `${last[0]} 종가` };
+    },
+  ];
+
+  let lastErr = null;
+  for (const strategy of strategies) {
+    try {
+      const result = await strategy();
+      state.prevClose = result.price;
+      document.getElementById('prevCloseVal').textContent = `$${result.price.toFixed(2)}`;
+      document.getElementById('prevCloseSub').textContent = result.label;
+      btn.textContent = '↺ 갱신';
+      btn.className = 'refresh-btn';
+      return;
+    } catch(e) {
+      lastErr = e;
+      // 다음 방법 시도
+    }
+  }
+
+  // 전부 실패 → 수동 입력 표시
+  btn.textContent = '✕ 재시도';
+  btn.className = 'refresh-btn err';
+  document.getElementById('prevCloseSub').textContent = '자동 조회 실패';
+  document.getElementById('manualInputWrap').style.display = 'block';
+}
+
+// 수동 입력 적용
+function applyManual() {
+  const val = parseFloat(document.getElementById('manualClose').value);
+  if (!val || val <= 0) return;
+  state.prevClose = val;
+  document.getElementById('prevCloseVal').textContent = `$${val.toFixed(2)}`;
+  document.getElementById('prevCloseSub').textContent = '수동 입력';
+  document.getElementById('manualInputWrap').style.display = 'none';
+  document.getElementById('refreshBtn').textContent = '↺ 갱신';
+  document.getElementById('refreshBtn').className = 'refresh-btn';
+}
+
+// ── 매도 방식 ──
+function setSellType(type, save = true) {
+  state.settings.sellType = type;
+  document.getElementById('seg-limit').classList.toggle('active', type === 'limit');
+  document.getElementById('seg-loc').classList.toggle('active', type === 'loc');
+}
+
+// ── 쿼터 토글 ──
+function toggleQuarter() {
+  const on = document.getElementById('s-useQuarter').checked;
+  const row = document.getElementById('quarterDivRow');
+  row.style.opacity = on ? '1' : '0.4';
+  row.style.pointerEvents = on ? 'auto' : 'none';
+}
+
+// ── 설정 패널 ──
+function openSettings() {
+  applySettingsToUI();
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('settingsPanel').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('settingsPanel').classList.remove('show');
+}
+
+// ── 결과 숨기기 ──
+function hideAll() {
+  ['r-sell','r-buy1','r-buy2','r-quarter','summaryBar','noResult','r-warning'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('show');
+  });
+}
+
+// ── 계산 ──
+function calculate() {
+  hideAll();
+
+  const holdQty  = parseFloat(document.getElementById('holdQty').value) || 0;
+  const avgPrice = parseFloat(document.getElementById('avgPrice').value) || 0;
+  const prevClose = state.prevClose;
+  const s = state.settings;
+
+  // 전일종가 없으면 에러
+  if (!prevClose) {
+    document.getElementById('noResult').textContent = '전일종가를 먼저 조회해주세요';
+    document.getElementById('noResult').classList.add('show');
+    return;
+  }
+
+  const unit       = s.capital / s.divisions;
+  const halfUnit   = unit * 0.5;
+  const investedAmt = holdQty * avgPrice;
+  const roundEst   = unit > 0 ? Math.round(investedAmt / unit) : 0;
+  const bufferDiv  = s.divisions - 2;
+  const hasCash    = true; // 현금 입력 없이 계산만 하므로 매수 항상 표시
+  const hasPos     = holdQty > 0 && avgPrice > 0;
+
+  // 쿼터손절 조건: 회차 소진 (현금 없음 여부는 모르니 회차만 체크)
+  const isQuarterStop = s.useQuarter && roundEst >= s.divisions;
+
+  // ── 요약 ──
+  document.getElementById('summaryBar').classList.add('show');
+  document.getElementById('s-round').textContent = `${roundEst} / ${s.divisions}`;
+  document.getElementById('s-unit').textContent = `$${unit.toFixed(0)}`;
+  if (hasPos) {
+    const pnlRaw = (prevClose - avgPrice) / avgPrice * 100;
+    const pnlPct = Math.abs(pnlRaw) < 0.05 ? 0 : pnlRaw;
+    const sign = pnlPct > 0 ? '+' : '';
+    const el = document.getElementById('s-pnl');
+    el.textContent = `${sign}${pnlPct.toFixed(1)}%`;
+    el.className = `sum-value ${pnlPct >= 0 ? 'accent' : 'red'}`;
+  } else {
+    document.getElementById('s-pnl').textContent = '—';
+  }
+
+  // ── 익절 매도 ──
+  if (hasPos) {
+    const sellPrice = parseFloat((avgPrice * (1 + s.targetPct / 100)).toFixed(2));
+    const typeLabel = s.sellType === 'loc' ? 'LOC 매도' : '지정가 매도';
+    const tagText   = s.sellType === 'loc' ? 'LOC' : 'LIMIT';
+    document.getElementById('r-sell-type-label').textContent = typeLabel;
+    document.getElementById('r-sell-tag').textContent = tagText;
+    document.getElementById('r-sell-qty').textContent = `${holdQty}주`;
+    document.getElementById('r-sell-price').textContent =
+      s.sellType === 'loc' ? `장마감 체결 (목표 $${sellPrice})` : `$${sellPrice}`;
+    document.getElementById('r-sell-target').textContent =
+      `평단 $${avgPrice.toFixed(2)} × ${(1 + s.targetPct/100).toFixed(3)}`;
+    document.getElementById('r-sell').classList.add('show');
+  }
+
+  // ── 0.5unit 부족 워닝 ──
+  const minCapitalNeeded = prevClose * 2 * s.divisions; // 1주 사려면 필요한 최소 운용원금
+  if (halfUnit < prevClose && !isQuarterStop) {
+    const minCapital = Math.ceil(prevClose * 2 * s.divisions);
+    document.getElementById('w-halfunit').textContent = `$${halfUnit.toFixed(2)}`;
+    document.getElementById('w-price').textContent = `$${prevClose.toFixed(2)}`;
+    document.getElementById('w-mincapital').textContent = `$${minCapital.toLocaleString()}`;
+    document.getElementById('r-warning').classList.add('show');
+  }
+
+  // ── LOC 매수 1번 ──
+  if (!isQuarterStop) {
+    const locPrice1 = parseFloat((prevClose * 1.1).toFixed(2));
+    const buyQty1   = Math.floor((halfUnit / prevClose) * 10000) / 10000;
+    const buyQty1Shares = Math.floor(buyQty1);
+
+    document.getElementById('r-buy1-qty').textContent = `${buyQty1Shares}주`;
+    document.getElementById('r-buy1-price').textContent = `$${locPrice1} (종가 × 1.1)`;
+    document.getElementById('r-buy1-amt').textContent = `≈ $${(buyQty1Shares * prevClose).toFixed(2)}`;
+    document.getElementById('r-buy1').classList.add('show');
+
+    // ── LOC 매수 2번 (보유 있을 때) ──
+    if (hasPos) {
+      const buyQty2 = Math.floor(halfUnit / avgPrice);
+      document.getElementById('r-buy2-qty').textContent = `${buyQty2}주`;
+      document.getElementById('r-buy2-price').textContent = `$${avgPrice.toFixed(2)} (평단가)`;
+      document.getElementById('r-buy2-amt').textContent = `≈ $${(buyQty2 * avgPrice).toFixed(2)}`;
+      document.getElementById('r-buy2').classList.add('show');
+    }
+  }
+
+  // ── 쿼터손절 ──
+  if (isQuarterStop && hasPos) {
+    const sellQty = Math.floor(holdQty / s.quarterDiv);
+    document.getElementById('r-quarter-qty').textContent = `${sellQty}주 (1/${s.quarterDiv})`;
+    document.getElementById('r-quarter-reason').textContent =
+      roundEst >= s.divisions ? `${s.divisions}회차 소진` : '버퍼 내 현금 부족';
+    document.getElementById('r-quarter').classList.add('show');
+  }
+}
+
+// ── 초기화 ──
+window.addEventListener('load', () => {
+  loadSettings();
+  if (state.ticker !== 'CUSTOM') fetchPrice();
+});
+</script>
+</body>
+</html>
