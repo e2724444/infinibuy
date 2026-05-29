@@ -177,7 +177,9 @@ body::before {
   border-radius: 2px;
   display: inline-block;
 }
-.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; min-width: 0; }
+.input-row .field { min-width: 0; }
+.input-row .field input { width: 100%; min-width: 0; }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field.full { grid-column: 1 / -1; }
 .field label {
@@ -461,6 +463,23 @@ body::before {
     <button class="settings-btn" onclick="openSettings()">⚙</button>
   </div>
 
+  <!-- 설정 요약 바 -->
+  <div id="settingSummary" style="
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    color:var(--text-dim);
+    padding:7px 12px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    margin-bottom:12px;
+    cursor:pointer;
+    transition: border-color 0.2s;
+  " onclick="openSettings()">
+    <span style="color:var(--text-dim); font-size:9px; letter-spacing:1px;">SETTINGS  </span>
+    <span id="summaryText" style="color:var(--accent);">—</span>
+  </div>
+
   <!-- 티커 선택 -->
   <div class="ticker-row" id="tickerRow">
     <button class="ticker-btn active" onclick="selectTicker(this, 'TQQQ')">TQQQ</button>
@@ -670,17 +689,6 @@ body::before {
   </div>
 
   <div class="setting-group">
-    <div class="group-label">익절 매도 방식</div>
-    <div class="setting-row">
-      <label>주문 타입</label>
-      <div class="seg-ctrl">
-        <button class="seg-btn active" id="seg-limit" onclick="setSellType('limit')">지정가</button>
-        <button class="seg-btn" id="seg-loc" onclick="setSellType('loc')">LOC</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="setting-group">
     <div class="group-label">쿼터 손절</div>
     <div class="setting-row">
       <label>쿼터 손절 사용</label>
@@ -707,7 +715,7 @@ let state = {
     capital: 10000,
     divisions: 40,
     targetPct: 10,
-    sellType: 'limit', // 'limit' | 'loc'
+    sellType: 'loc',
     useQuarter: false,
     quarterDiv: 4
   }
@@ -726,6 +734,13 @@ function loadSettings() {
   applySettingsToUI();
 }
 
+function updateSummaryBar() {
+  const s = state.settings;
+  const quarterText = s.useQuarter ? `쿼터손절(1/${s.quarterDiv})` : '쿼터손절없음';
+  document.getElementById('summaryText').textContent =
+    `$${s.capital.toLocaleString()} / ${s.divisions}분할 / 익절${s.targetPct}% / ${quarterText}`;
+}
+
 function saveSettings() {
   const s = state.settings;
   s.capital    = parseFloat(document.getElementById('s-capital').value) || 10000;
@@ -736,6 +751,7 @@ function saveSettings() {
   s.ticker = state.ticker;
   localStorage.setItem('infinibuy_settings', JSON.stringify(s));
   closeSettings();
+  updateSummaryBar();
   fetchPrice();
 }
 
@@ -746,7 +762,7 @@ function applySettingsToUI() {
   document.getElementById('s-targetPct').value = s.targetPct;
   document.getElementById('s-quarterDiv').value = s.quarterDiv;
   document.getElementById('s-useQuarter').checked = s.useQuarter;
-  setSellType(s.sellType, false);
+  // sellType 항상 LOC 고정
   toggleQuarter();
 
   // 티커 버튼
@@ -856,13 +872,6 @@ function applyManual() {
   document.getElementById('refreshBtn').className = 'refresh-btn';
 }
 
-// ── 매도 방식 ──
-function setSellType(type, save = true) {
-  state.settings.sellType = type;
-  document.getElementById('seg-limit').classList.toggle('active', type === 'limit');
-  document.getElementById('seg-loc').classList.toggle('active', type === 'loc');
-}
-
 // ── 쿼터 토글 ──
 function toggleQuarter() {
   const on = document.getElementById('s-useQuarter').checked;
@@ -937,13 +946,13 @@ function calculate() {
     const sellPrice = parseFloat((avgPrice * (1 + s.targetPct / 100)).toFixed(2));
     const typeLabel = s.sellType === 'loc' ? 'LOC 매도' : '지정가 매도';
     const tagText   = s.sellType === 'loc' ? 'LOC' : 'LIMIT';
-    document.getElementById('r-sell-type-label').textContent = typeLabel;
-    document.getElementById('r-sell-tag').textContent = tagText;
+    document.getElementById('r-sell-type-label').textContent = 'LOC 매도';
+    document.getElementById('r-sell-tag').textContent = 'LOC';
     document.getElementById('r-sell-qty').textContent = `${holdQty}주`;
     document.getElementById('r-sell-price').textContent =
-      s.sellType === 'loc' ? `장마감 체결 (목표 $${sellPrice})` : `$${sellPrice}`;
+      `$${sellPrice} (평단 × ${(1 + s.targetPct/100).toFixed(3)})`;
     document.getElementById('r-sell-target').textContent =
-      `평단 $${avgPrice.toFixed(2)} × ${(1 + s.targetPct/100).toFixed(3)}`;
+      `평단 $${avgPrice.toFixed(2)} → $${sellPrice}`;
     document.getElementById('r-sell').classList.add('show');
   }
 
@@ -991,6 +1000,7 @@ function calculate() {
 // ── 초기화 ──
 window.addEventListener('load', () => {
   loadSettings();
+  updateSummaryBar();
   if (state.ticker !== 'CUSTOM') fetchPrice();
 });
 </script>
