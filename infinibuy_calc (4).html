@@ -968,12 +968,12 @@ function calculate() {
 
   // ── LOC 매수 1번 ──
   if (!isQuarterStop) {
-    const locPrice1 = parseFloat((prevClose * 1.1).toFixed(2));
+    const locPrice1 = parseFloat((prevClose * (1 + s.targetPct / 100)).toFixed(2));
     const buyQty1   = Math.floor((halfUnit / prevClose) * 10000) / 10000;
     const buyQty1Shares = Math.floor(buyQty1);
 
     document.getElementById('r-buy1-qty').textContent = `${buyQty1Shares}주`;
-    document.getElementById('r-buy1-price').textContent = `$${locPrice1} (종가 × 1.1)`;
+    document.getElementById('r-buy1-price').textContent = `$${locPrice1} (종가 × ${(1 + s.targetPct/100).toFixed(3)})`;
     document.getElementById('r-buy1-amt').textContent = `≈ $${(buyQty1Shares * prevClose).toFixed(2)}`;
     document.getElementById('r-buy1').classList.add('show');
 
